@@ -1,53 +1,15 @@
-import { VertexData } from "./vertex-data";
+import { Pass } from "./pass";
+import { GPUMesh, Mesh } from "./mesh";
 
-interface GPUVertexData {
-  meshes: {
-    positions: Float32Array;
-    indicies: Uint16Array;
-    positionsBuffer: GPUBuffer;
-    indiciesBuffer: GPUBuffer;
-  }[];
-  layout: GPUVertexBufferLayout;
-}
-
-export class Renderer {
+export interface Renderer {
   context: GPUCanvasContext;
   textureFormat: GPUTextureFormat;
   canvasWidth: number;
-  aspectRatio: number;
+  canvasHeight: number;
   device: GPUDevice;
-  depthTexture?: GPUTexture;
-
-  constructor(
-    context: GPUCanvasContext,
-    textureFormat: GPUTextureFormat,
-    canvasWidth: number,
-    aspectRatio: number,
-    device: GPUDevice,
-  ) {
-    this.context = context;
-    this.textureFormat = textureFormat;
-    this.canvasWidth = canvasWidth;
-    this.aspectRatio = aspectRatio;
-    this.device = device;
-  }
-
-  get canvasHeight(): number {
-    return Math.floor(this.canvasWidth / this.aspectRatio);
-  }
-}
-
-// vertices shouldnt be a part of the base pass because compute shaders dont have them
-export class Pass {
-  renderer: Renderer;
-  shader: string;
-  uniforms: Float32Array;
-
-  constructor(renderer: Renderer, shader: string, uniforms: Float32Array) {
-    this.renderer = renderer;
-    this.shader = shader;
-    this.uniforms = uniforms;
-  }
+  diffuseSampler: GPUSampler;
+  depthTexture: GPUTexture;
+  diffuseTexture: GPUTexture;
 }
 
 export class RenderPass extends Pass {
@@ -55,9 +17,8 @@ export class RenderPass extends Pass {
 
   uniformBuffer: GPUBuffer;
   bindGroup: GPUBindGroup;
-  bindGroupLayout: GPUBindGroupLayout;
 
-  private _vertexData: GPUVertexData;
+  meshes: GPUMesh[];
 
   passDescriptor: GPURenderPassDescriptor & {
     colorAttachments: GPURenderPassColorAttachment[];
@@ -66,24 +27,22 @@ export class RenderPass extends Pass {
 
   constructor(
     renderer: Renderer,
-    shader: string,
+    shader: GPUShaderModule,
     uniforms: Float32Array,
-    meshes: VertexData[],
+    meshes: GPUMesh[],
   ) {
     super(renderer, shader, uniforms);
 
     this.uniformBuffer = this.createUniformBuffer();
-    this.bindGroupLayout = this.createBindGroupLayout();
+    this.pipeline = this.createPipeline();
     this.bindGroup = this.createBindGroup();
 
-    this._vertexData = this.convertToGPU(meshes);
-
-    this.pipeline = this.createPipeline();
+    this.meshes = meshes;
 
     this.passDescriptor = {
       colorAttachments: [
         {
-          view: this.renderer.context.getCurrentTexture().createView(),
+          view: undefined,
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           loadOp: "clear",
           storeOp: "store",
@@ -98,113 +57,57 @@ export class RenderPass extends Pass {
     };
   }
 
-  get vertexData() {
-    return this._vertexData;
-  }
-
-  setVertexData(meshes: VertexData[]): void {
-    this._vertexData = this.convertToGPU(meshes);
-  }
-
-  // should probably utilize the adapter pattern
-  convertToGPU(meshes: VertexData[]): GPUVertexData {
-    const device = this.renderer.device;
-    const convertedMeshes = [];
-
-    for (const mesh of meshes) {
-      const positions = mesh.toFloat32();
-
-      convertedMeshes.push({
-        positions: positions,
-        indicies: mesh.indicies,
-        positionsBuffer: device.createBuffer({
-          size: positions.byteLength,
-          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        }),
-        indiciesBuffer: device.createBuffer({
-          size: mesh.indicies.byteLength,
-          usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-        }),
-      });
-    }
-
-    return {
-      meshes: convertedMeshes,
-      layout: meshes[0].layout,
-    };
-  }
-
-  writeVertexBuffers(): void {
-    const device = this.renderer.device;
-    //should be dependent on whether certain buffers actually need to be rewritten (for example every frame)
-    for (const mesh of this.vertexData.meshes) {
-      device.queue.writeBuffer(
-        mesh.positionsBuffer,
-        0,
-        mesh.positions,
-        0,
-        mesh.positions.length,
-      );
-
-      device.queue.writeBuffer(
-        mesh.indiciesBuffer,
-        0,
-        mesh.indicies,
-        0,
-        mesh.indicies.length,
-      );
-    }
-  }
-
-  render(time: DOMHighResTimeStamp): void {
-    const device = this.renderer.device;
-
-    this.uniforms[0] = time;
-
-    device.queue.writeBuffer(
-      this.uniformBuffer,
-      0,
-      this.uniforms,
-      0,
-      this.uniforms.length,
-    );
-
-    this.draw();
-  }
-
   draw(): void {
     const renderer = this.renderer;
     const device = renderer.device;
 
+    // initialize textures
+    // separate function
+
     const textureView = renderer.context.getCurrentTexture().createView();
     this.passDescriptor.colorAttachments[0].view = textureView;
-
-    if (!renderer.depthTexture) {
-      renderer.depthTexture = device.createTexture({
-        size: [renderer.canvasWidth, renderer.canvasHeight],
-        format: "depth24plus",
-        usage: GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-    }
 
     this.passDescriptor.depthStencilAttachment.view =
       renderer.depthTexture.createView();
 
+    //initialize command encoder
     const commandEncoder = device.createCommandEncoder();
     const passEncoder = commandEncoder.beginRenderPass(this.passDescriptor);
 
     passEncoder.setPipeline(this.pipeline);
     passEncoder.setBindGroup(0, this.bindGroup);
 
-    this.vertexData.meshes.forEach((mesh) => {
-      passEncoder.setVertexBuffer(0, mesh.positionsBuffer);
+    this.meshes.forEach((mesh) => {
+      passEncoder.setVertexBuffer(0, mesh.verticesBuffer);
       passEncoder.setIndexBuffer(mesh.indiciesBuffer, "uint16");
-      passEncoder.drawIndexed(mesh.indicies.length);
+      passEncoder.drawIndexed(mesh.indiciesCount);
     });
 
     passEncoder.end();
 
+    device.pushErrorScope("internal");
+
     device.queue.submit([commandEncoder.finish()]);
+
+    device.popErrorScope().then((error) => {
+      if (error) {
+        throw new Error(error.message);
+      }
+    });
+  }
+
+  render(uniforms: Float32Array): void {
+    const device = this.renderer.device;
+
+    device.queue.writeBuffer(
+      this.uniformBuffer,
+      0,
+      uniforms,
+      0,
+      uniforms.length,
+    );
+
+    this.draw();
   }
 
   private createUniformBuffer(): GPUBuffer {
@@ -220,22 +123,22 @@ export class RenderPass extends Pass {
     const device = this.renderer.device;
 
     return device.createBindGroup({
-      label: "Primary group",
-      layout: this.bindGroupLayout,
-      entries: [{ binding: 0, resource: { buffer: this.uniformBuffer } }],
-    });
-  }
-
-  private createBindGroupLayout(): GPUBindGroupLayout {
-    const device = this.renderer.device;
-
-    return device.createBindGroupLayout({
-      label: "Primary group layout",
+      label: "Primary bind group",
+      layout: this.pipeline.getBindGroupLayout(0),
       entries: [
         {
           binding: 0,
-          visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
-          buffer: { type: "uniform" },
+          resource: {
+            buffer: this.uniformBuffer,
+          },
+        },
+        {
+          binding: 1,
+          resource: this.renderer.diffuseSampler,
+        },
+        {
+          binding: 2,
+          resource: this.renderer.diffuseTexture.createView(),
         },
       ],
     });
@@ -243,19 +146,16 @@ export class RenderPass extends Pass {
 
   private createPipeline(): GPURenderPipeline {
     const device = this.renderer.device;
-    const shaderModule = device.createShaderModule({
-      code: this.shader,
-    });
 
     return device.createRenderPipeline({
       label: "Render pipeline",
       vertex: {
-        module: shaderModule,
+        module: this.shader,
         entryPoint: "vertex_main",
-        buffers: [this.vertexData.layout],
+        buffers: [Mesh.getLayout(0)],
       },
       fragment: {
-        module: shaderModule,
+        module: this.shader,
         entryPoint: "fragment_main",
         targets: [
           {
@@ -267,7 +167,34 @@ export class RenderPass extends Pass {
         topology: "triangle-list",
       },
       layout: device.createPipelineLayout({
-        bindGroupLayouts: [this.bindGroupLayout],
+        bindGroupLayouts: [
+          device.createBindGroupLayout({
+            label: "Primary group layout",
+            entries: [
+              {
+                binding: 0,
+                visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
+                buffer: { type: "uniform" },
+              },
+              {
+                binding: 1,
+                visibility: GPUShaderStage.FRAGMENT,
+                sampler: {
+                  type: "filtering",
+                },
+              },
+              {
+                binding: 2,
+                visibility: GPUShaderStage.FRAGMENT,
+                texture: {
+                  sampleType: "float",
+                  viewDimension: "2d",
+                  multisampled: false,
+                },
+              },
+            ],
+          }),
+        ],
       }),
       depthStencil: {
         depthWriteEnabled: true,

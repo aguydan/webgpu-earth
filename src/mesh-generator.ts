@@ -1,8 +1,10 @@
 import { Vector3 } from "./vector3";
-import { VertexData } from "./vertex-data";
+import { Mesh } from "./mesh";
 
 export class MeshGenerator {
-  generateFace(normal: Vector3, resolution: number = 2): VertexData {
+  constructor(private _device: GPUDevice) {}
+
+  generateFace(normal: Vector3, resolution: number = 2): Mesh {
     const axisA = new Vector3(normal.y, normal.z, normal.x);
     const axisB = Vector3.cross(normal, axisA);
 
@@ -38,11 +40,11 @@ export class MeshGenerator {
       }
     }
 
-    return new VertexData(vertices, indicies);
+    return new Mesh(vertices, indicies, this._device);
   }
 
-  generateCube(resolution: number): VertexData[] {
-    const data: VertexData[] = [];
+  generateCube(resolution: number): Mesh[] {
+    const data: Mesh[] = [];
 
     const sideNormals = [
       Vector3.up,
@@ -60,7 +62,7 @@ export class MeshGenerator {
     return data;
   }
 
-  generateCubeSphere(resolution: number): VertexData[] {
+  generateCubeSphere(resolution: number): Mesh[] {
     const data = this.generateCube(resolution);
 
     for (const d of data) {
