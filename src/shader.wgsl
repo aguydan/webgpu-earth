@@ -1,8 +1,9 @@
 struct VertexOut {
     @builtin(position) position: vec4f,
-    @location(0) color: vec4f,
-    @location(1) light: f32,
-    @location(2) fresnel: f32
+    @location(0) uv: vec2f,
+    @location(1) normal: vec3f,
+    @location(2) light: f32,
+    @location(3) fresnel: f32
 }
 
 struct Uniforms {
@@ -35,12 +36,23 @@ fn vertex_main(@location(0) position: vec3f) -> VertexOut
 {
     var output: VertexOut;
 
-    output.position = uniforms.mvpMatrix * vec4f(position, 1);
-    output.color = vec4f(position, 1);
+    var uv = point_to_texture_coord(position.xyz);
+    var dimensions = textureDimensions(heightTexture);
 
-    var light_dir = normalize(vec3f(1, 4, 7) - position);
-    output.light = clamp(dot(position, light_dir), 0., 1.);
+    var height = textureLoad(heightTexture, vec2(
+        i32(uv.x * f32(dimensions.x)),
+        i32(uv.y * f32(dimensions.y))
+    ), 0).r;
 
+    var initialPosition = position;
+    initialPosition += position * height * .3;
+
+    var light_dir = normalize(vec3f(1, 1, 3) - position);
+
+    output.position = uniforms.mvpMatrix * vec4f(initialPosition, 1);
+    output.uv = uv;
+    output.normal = position;
+    output.light = clamp(dot(initialPosition, light_dir), 0., 1.);
     output.fresnel = 1 - dot(position, vec3f(0, 0, 1));
 
     return output;
@@ -49,10 +61,7 @@ fn vertex_main(@location(0) position: vec3f) -> VertexOut
 @fragment
 fn fragment_main(fragData: VertexOut) -> @location(0) vec4f
 {
-    var position = fragData.color;
+    var texture = textureSample(heightTexture, diffuseSampler, fragData.uv);
 
-    var uv = point_to_texture_coord(position.xyz);
-    var texture = textureSample(diffuseTexture, diffuseSampler, uv);
-
-    return vec4f(texture);
+    return vec4f(vec3f(texture.xyz), 1);
 }

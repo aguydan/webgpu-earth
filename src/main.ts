@@ -23,7 +23,7 @@ async function init() {
   const device = await initializeDevice();
 
   const generator = new MeshGenerator(device);
-  const meshes = generator.generateCubeSphere(31);
+  let meshes = generator.generateCubeSphere(1, 70);
   const gpuMeshes = meshes.map((mesh) => mesh.toGPUMesh());
 
   const canvas = document.createElement("canvas");
@@ -41,10 +41,9 @@ async function init() {
     alphaMode: "premultiplied",
   });
 
-  const aspectRatio = 16 / 9;
-  const canvasWidth = 1280;
-  const canvasHeight = Math.floor(canvasWidth / aspectRatio);
-
+  const canvasWidth = window.innerWidth;
+  const canvasHeight = window.innerHeight;
+  const aspectRatio = canvasWidth / canvasHeight;
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
   document.body.appendChild(canvas);
@@ -52,10 +51,10 @@ async function init() {
   const settings: Settings = {
     time: 10,
     fov: 0.5,
-    aspectRatio: canvasWidth / canvasHeight,
+    aspectRatio,
     zNear: 1,
     zFar: 2000,
-    translate: [0, 0, 0],
+    translate: [0, 0, -4],
     rotate: [0, 0, 0],
     cameraYaw: 0,
     cameraPitch: 0,
@@ -73,9 +72,9 @@ async function init() {
   matrixFolder.add(settings, "zFar", 0, 2000);
 
   const translationFolder = gui.addFolder("Translation");
-  translationFolder.add(settings.translate, "0", -1000, 1000);
-  translationFolder.add(settings.translate, "1", -1000, 1000);
-  translationFolder.add(settings.translate, "2", -2000, 2000);
+  translationFolder.add(settings.translate, "0", -10, 10);
+  translationFolder.add(settings.translate, "1", -10, 10);
+  translationFolder.add(settings.translate, "2", -10, 10);
 
   const rotationFolder = gui.addFolder("Rotation");
   rotationFolder.add(settings.rotate, "0", 0, 2 * Math.PI);
@@ -101,7 +100,6 @@ async function init() {
 
   const diffuseSampler = device.createSampler({
     magFilter: "linear",
-    minFilter: "linear",
   });
 
   //image loading
@@ -188,6 +186,7 @@ async function init() {
 
     shouldRequest = false;
 
+    /*
     requestAnimationFrame(() => {
       if (prev.x === 0 && prev.y === 0) {
         (prev.x = e.clientX), (prev.y = e.clientY);
@@ -201,13 +200,13 @@ async function init() {
       settings.cameraYaw = Math.PI * Math.min(Math.max(yawFactor, 0), 1);
       settings.cameraPitch = (2 * Math.PI * pitchFactor) % (2 * Math.PI);
 
-      updateUniforms(timeValue, matrixValue, settings);
+            updateUniforms(timeValue, matrixValue, settings);
       pass.render(uniformValues);
 
       prev = { ...current };
 
       shouldRequest = true;
-    });
+    }); */
   });
 
   function once() {

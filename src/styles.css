@@ -11,6 +11,6 @@ body {
   background-color: gray;
 
   canvas {
-    width: 45rem;
+    width: 100%;
   }
 }

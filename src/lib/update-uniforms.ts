@@ -25,7 +25,7 @@ export function updateUniforms(
     .rotateY(settings.rotate[1])
     .rotateZ(settings.rotate[2]);
 
-  const camera = new Camera(new Vector3(0, 0, -10), new Vector3(), {
+  const camera = new Camera(new Vector3(0, 0, 10), new Vector3(), {
     fovy: settings.fov,
     aspectRatio: settings.aspectRatio,
     zNear: settings.zNear,
