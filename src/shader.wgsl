@@ -2,8 +2,6 @@ struct VertexOut {
     @builtin(position) position: vec4f,
     @location(0) uv: vec2f,
     @location(1) normal: vec3f,
-    @location(2) light: f32,
-    @location(3) fresnel: f32
 }
 
 struct Uniforms {
@@ -45,15 +43,11 @@ fn vertex_main(@location(0) position: vec3f) -> VertexOut
     ), 0).r;
 
     var initialPosition = position;
-    initialPosition += position * height * .3;
-
-    var light_dir = normalize(vec3f(1, 1, 3) - position);
+    //initialPosition += position * height * .3;
 
     output.position = uniforms.mvpMatrix * vec4f(initialPosition, 1);
     output.uv = uv;
     output.normal = position;
-    output.light = clamp(dot(initialPosition, light_dir), 0., 1.);
-    output.fresnel = 1 - dot(position, vec3f(0, 0, 1));
 
     return output;
 }
@@ -61,7 +55,7 @@ fn vertex_main(@location(0) position: vec3f) -> VertexOut
 @fragment
 fn fragment_main(fragData: VertexOut) -> @location(0) vec4f
 {
-    var texture = textureSample(heightTexture, diffuseSampler, fragData.uv);
+    var texture = textureSample(diffuseTexture, diffuseSampler, fragData.uv);
 
     return vec4f(vec3f(texture.xyz), 1);
 }

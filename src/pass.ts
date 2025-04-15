@@ -1,19 +1,12 @@
-import { Renderer } from "./render-pass";
+import { Renderer } from "./types";
 
+//probably dont need this class or just move uniforms and render here
 export class Pass {
   renderer: Renderer;
   shader: GPUShaderModule;
 
-  //uniform data with bind groups??
-  uniforms: Float32Array;
-
-  constructor(
-    renderer: Renderer,
-    shader: GPUShaderModule,
-    uniforms: Float32Array,
-  ) {
+  constructor(renderer: Renderer, shader: GPUShaderModule) {
     this.renderer = renderer;
     this.shader = shader;
-    this.uniforms = uniforms;
   }
 }

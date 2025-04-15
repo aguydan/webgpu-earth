@@ -1,5 +1,5 @@
 import { Camera } from "../camera";
-import { Settings } from "../main";
+import { Settings } from "../types";
 import { Matrix4x4 } from "../matrix4x4";
 import { Vector3 } from "../vector3";
 
@@ -26,7 +26,7 @@ export function updateUniforms(
     .rotateZ(settings.rotate[2]);
 
   const camera = new Camera(new Vector3(0, 0, 10), new Vector3(), {
-    fovy: settings.fov,
+    fovY: settings.fovY,
     aspectRatio: settings.aspectRatio,
     zNear: settings.zNear,
     zFar: settings.zFar,

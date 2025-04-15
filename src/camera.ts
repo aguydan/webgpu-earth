@@ -2,7 +2,7 @@ import { Matrix4x4 } from "./matrix4x4";
 import { Vector3 } from "./vector3";
 
 interface ProjectionOptions {
-  fovy: number;
+  fovY: number;
   aspectRatio: number;
   zNear: number;
   zFar: number;
@@ -15,7 +15,7 @@ export class Camera {
   // the point at which the camera looks
   target: Vector3 = new Vector3();
 
-  fovy: number = (2 * Math.PI) / 5;
+  fovY: number = (2 * Math.PI) / 5;
   aspectRatio: number = 16 / 9;
   zNear: number = 1;
   zFar: number = 2000;
@@ -29,10 +29,10 @@ export class Camera {
     this.target = target;
 
     if (projectionOptions) {
-      const { fovy, aspectRatio, zNear, zFar } = projectionOptions;
+      const { fovY, aspectRatio, zNear, zFar } = projectionOptions;
 
-      // fovy is a vertical field of view in radians
-      this.fovy = fovy;
+      // fovY is a vertical field of view in radians
+      this.fovY = fovY;
       this.aspectRatio = aspectRatio;
       this.zNear = zNear;
       this.zFar = zFar;
@@ -45,7 +45,7 @@ export class Camera {
 
   get viewProjectionMatrix() {
     return Matrix4x4.perspective(
-      this.fovy,
+      this.fovY,
       this.aspectRatio,
       this.zNear,
       this.zFar,

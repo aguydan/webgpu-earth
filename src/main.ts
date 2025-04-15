@@ -1,29 +1,18 @@
 import { GUI } from "dat.gui";
 import { MeshGenerator } from "./mesh-generator";
-import { Renderer, RenderPass } from "./render-pass";
+import { RenderPass } from "./render-pass";
 import shaderCode from "./shader.wgsl?raw";
 import { Shader } from "./shader";
 import { initializeDevice } from "./lib/initialize-device";
 import { updateUniforms } from "./lib/update-uniforms";
-
-export interface Settings {
-  time: number;
-  fov: number;
-  aspectRatio: number;
-  zNear: number;
-  zFar: number;
-  translate: [number, number, number];
-  rotate: [number, number, number];
-  cameraYaw: number;
-  cameraPitch: number;
-}
+import { createImageTexture } from "./lib/create-image-texture";
+import { Renderer, Settings } from "./types";
 
 async function init() {
-  // initialize the device
   const device = await initializeDevice();
 
   const generator = new MeshGenerator(device);
-  let meshes = generator.generateCubeSphere(1, 70);
+  const meshes = generator.generateCubeSphere(1, 70);
   const gpuMeshes = meshes.map((mesh) => mesh.toGPUMesh());
 
   const canvas = document.createElement("canvas");
@@ -44,18 +33,19 @@ async function init() {
   const canvasWidth = window.innerWidth;
   const canvasHeight = window.innerHeight;
   const aspectRatio = canvasWidth / canvasHeight;
+
   canvas.width = canvasWidth;
   canvas.height = canvasHeight;
   document.body.appendChild(canvas);
 
   const settings: Settings = {
     time: 10,
-    fov: 0.5,
+    fovY: 0.5,
     aspectRatio,
     zNear: 1,
     zFar: 2000,
-    translate: [0, 0, -4],
-    rotate: [0, 0, 0],
+    translate: [0, 0, 0],
+    rotate: [0, Math.PI, 0],
     cameraYaw: 0,
     cameraPitch: 0,
   };
@@ -67,7 +57,7 @@ async function init() {
   generalFolder.add(settings, "time", 1, 40);
 
   const matrixFolder = gui.addFolder("Projection matrix");
-  matrixFolder.add(settings, "fov", 0, Math.PI);
+  matrixFolder.add(settings, "fovY", 0, Math.PI);
   matrixFolder.add(settings, "zNear", 0, 2000);
   matrixFolder.add(settings, "zFar", 0, 2000);
 
@@ -98,53 +88,16 @@ async function init() {
   const timeValue = uniformValues.subarray(0, 1);
   const matrixValue = uniformValues.subarray(4, 20);
 
-  const diffuseSampler = device.createSampler({
+  // Textures
+
+  const defaultSampler = device.createSampler({
     magFilter: "linear",
   });
 
-  //image loading
-  const image = await fetch("/src/world.jpg");
-  const blob = await image.blob();
-
-  const bitmap = await createImageBitmap(blob, {
-    colorSpaceConversion: "none",
-  });
-
-  const diffuseTexture = device.createTexture({
-    size: [bitmap.width, bitmap.height],
-    format: "rgba8unorm",
-    usage:
-      GPUTextureUsage.TEXTURE_BINDING |
-      GPUTextureUsage.COPY_DST |
-      GPUTextureUsage.RENDER_ATTACHMENT,
-  });
-
-  device.queue.copyExternalImageToTexture(
-    { source: bitmap, flipY: true },
-    { texture: diffuseTexture },
-    { width: bitmap.width, height: bitmap.height },
-  );
-
-  const image2 = await fetch("/src/world-elevation.png");
-  const blob2 = await image2.blob();
-
-  const bitmap2 = await createImageBitmap(blob2, {
-    colorSpaceConversion: "none",
-  });
-
-  const heightTexture = device.createTexture({
-    size: [bitmap2.width, bitmap2.height],
-    format: "rgba8unorm",
-    usage:
-      GPUTextureUsage.TEXTURE_BINDING |
-      GPUTextureUsage.COPY_DST |
-      GPUTextureUsage.RENDER_ATTACHMENT,
-  });
-
-  device.queue.copyExternalImageToTexture(
-    { source: bitmap2, flipY: true },
-    { texture: heightTexture },
-    { width: bitmap2.width, height: bitmap2.height },
+  const diffuseTexture = await createImageTexture(device, "/src/world.jpg");
+  const heightTexture = await createImageTexture(
+    device,
+    "/src/world-elevation.png",
   );
 
   const depthTexture = device.createTexture({
@@ -159,12 +112,13 @@ async function init() {
     canvasWidth,
     canvasHeight,
     device,
-    diffuseSampler,
+    defaultSampler,
     diffuseTexture,
     depthTexture,
     heightTexture,
   };
 
+  // a util function will do
   const shader = await new Shader(shaderCode, renderer).createModule();
   const pass = new RenderPass(renderer, shader, uniformValues, gpuMeshes);
 
@@ -215,18 +169,19 @@ async function init() {
     requestAnimationFrame(() => {
       updateUniforms(timeValue, matrixValue, settings);
 
-      pass.render(uniformValues);
+      pass.render();
 
       nextFrame = requestAnimationFrame(animate);
     });
   }
 
+  //delete and redo this
   function animate(time: DOMHighResTimeStamp) {
     const modifiedTime = time / 1000 / settings.time;
 
     updateUniforms(timeValue, matrixValue, settings, modifiedTime);
 
-    pass.render(uniformValues);
+    pass.render();
 
     //nextFrame = requestAnimationFrame(animate);
   }

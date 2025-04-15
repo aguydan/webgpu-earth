@@ -1,4 +1,4 @@
-import { Renderer } from "./render-pass";
+import { Renderer } from "./types";
 
 export class Shader {
   constructor(
@@ -22,6 +22,7 @@ export class Shader {
       );
     }
 
+    //temporary
     if (compilationInfo.messages.length) {
       throw new Error("WGSL error");
     }

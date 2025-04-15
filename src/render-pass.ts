@@ -1,56 +1,46 @@
 import { Pass } from "./pass";
 import { GPUMesh, Mesh } from "./mesh";
-
-export interface Renderer {
-  context: GPUCanvasContext;
-  textureFormat: GPUTextureFormat;
-  canvasWidth: number;
-  canvasHeight: number;
-  device: GPUDevice;
-  diffuseSampler: GPUSampler;
-  depthTexture: GPUTexture;
-  diffuseTexture: GPUTexture;
-  heightTexture: GPUTexture;
-}
+import {
+  CustomRenderPassDescriptor,
+  Renderer,
+  VERTEX_BUFFER_LAYOUT,
+} from "./types";
+import { GPUUniform } from "./uniform";
 
 export class RenderPass extends Pass {
   pipeline: GPURenderPipeline;
-
-  uniformBuffer: GPUBuffer;
   bindGroup: GPUBindGroup;
 
   meshes: GPUMesh[];
+  uniforms: GPUUniform[];
 
-  passDescriptor: GPURenderPassDescriptor & {
-    colorAttachments: GPURenderPassColorAttachment[];
-    depthStencilAttachment: GPURenderPassDepthStencilAttachment;
-  };
+  passDescriptor: CustomRenderPassDescriptor;
 
   constructor(
     renderer: Renderer,
     shader: GPUShaderModule,
-    uniforms: Float32Array,
     meshes: GPUMesh[],
+    uniforms: GPUUniform[],
   ) {
-    super(renderer, shader, uniforms);
+    super(renderer, shader);
 
-    this.uniformBuffer = this.createUniformBuffer();
     this.pipeline = this.createPipeline();
     this.bindGroup = this.createBindGroup();
 
     this.meshes = meshes;
+    this.uniforms = uniforms;
 
     this.passDescriptor = {
       colorAttachments: [
         {
-          view: undefined,
+          view: null,
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           loadOp: "clear",
           storeOp: "store",
         },
       ],
       depthStencilAttachment: {
-        view: undefined,
+        view: null,
         depthClearValue: 1.0,
         depthLoadOp: "clear",
         depthStoreOp: "store",
@@ -79,63 +69,57 @@ export class RenderPass extends Pass {
     passEncoder.setBindGroup(0, this.bindGroup);
 
     this.meshes.forEach((mesh) => {
-      passEncoder.setVertexBuffer(0, mesh.verticesBuffer);
+      passEncoder.setVertexBuffer(
+        VERTEX_BUFFER_LAYOUT.Mesh,
+        mesh.verticesBuffer,
+      );
       passEncoder.setIndexBuffer(mesh.indiciesBuffer, "uint16");
       passEncoder.drawIndexed(mesh.indiciesCount);
     });
 
     passEncoder.end();
 
-    device.pushErrorScope("internal");
+    //     device.pushErrorScope("internal");
 
     device.queue.submit([commandEncoder.finish()]);
 
-    device.popErrorScope().then((error) => {
+    /*     device.popErrorScope().then((error) => {
       if (error) {
         throw new Error(error.message);
       }
-    });
+    }); */
   }
 
-  render(uniforms: Float32Array): void {
+  //update uniforms???
+  render(): void {
     const device = this.renderer.device;
 
-    device.queue.writeBuffer(
-      this.uniformBuffer,
-      0,
-      uniforms,
-      0,
-      uniforms.length,
-    );
+    this.uniforms.forEach((uniform) => {
+      device.queue.writeBuffer(
+        uniform.buffer,
+        0,
+        uniform.values,
+        0,
+        uniform.values.length,
+      );
+    });
 
     this.draw();
-  }
-
-  private createUniformBuffer(): GPUBuffer {
-    const device = this.renderer.device;
-
-    return device.createBuffer({
-      size: this.uniforms.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
   }
 
   private createBindGroup(): GPUBindGroup {
     const device = this.renderer.device;
 
+    // maybe it makes sense to create both bind group entry and the layout entry on
+    // uniform and texture creation in their respective classes
     return device.createBindGroup({
       label: "Primary bind group",
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
-        {
-          binding: 0,
-          resource: {
-            buffer: this.uniformBuffer,
-          },
-        },
+        ...this.uniforms.map((uniform) => uniform.bindGroupEntry),
         {
           binding: 1,
-          resource: this.renderer.diffuseSampler,
+          resource: this.renderer.defaultSampler,
         },
         {
           binding: 2,
@@ -149,6 +133,7 @@ export class RenderPass extends Pass {
     });
   }
 
+  // we could probably dependency inject a pipeline for each mesh
   private createPipeline(): GPURenderPipeline {
     const device = this.renderer.device;
 
@@ -157,7 +142,7 @@ export class RenderPass extends Pass {
       vertex: {
         module: this.shader,
         entryPoint: "vertex_main",
-        buffers: [Mesh.getLayout(0)],
+        buffers: [Mesh.vertexBufferLayout],
       },
       fragment: {
         module: this.shader,
@@ -177,11 +162,7 @@ export class RenderPass extends Pass {
           device.createBindGroupLayout({
             label: "Primary group layout",
             entries: [
-              {
-                binding: 0,
-                visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX,
-                buffer: { type: "uniform" },
-              },
+              ...this.uniforms.map((uniform) => uniform.layoutEntry),
               {
                 binding: 1,
                 visibility: GPUShaderStage.FRAGMENT,

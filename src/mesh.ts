@@ -22,11 +22,11 @@ export class Mesh {
   }
 
   // the layout only cares about the vertices array. Indicies dont have layouts
-  static getLayout(shaderLocation: number): GPUVertexBufferLayout {
+  static get vertexBufferLayout(): GPUVertexBufferLayout {
     return {
       attributes: [
         {
-          shaderLocation,
+          shaderLocation: 0,
           offset: 0,
           format: "float32x3",
         },

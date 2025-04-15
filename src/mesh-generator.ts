@@ -68,7 +68,7 @@ export class MeshGenerator {
 
     for (let i = 0; i < meshCount; i++) {
       const x = i % resolution;
-      const y = Math.floor(i / resolution);
+      const y = Math.trunc(i / resolution);
 
       const position = normal
         .add(axisA.mult(2 * (x / resolution) - 1))
