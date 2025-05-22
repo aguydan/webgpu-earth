@@ -14,22 +14,7 @@ export class RenderPass extends Pass {
   meshes: GPUMesh[];
   uniforms: GPUUniform[];
 
-  passDescriptor: CustomRenderPassDescriptor = {
-    colorAttachments: [
-      {
-        view: null,
-        clearValue: { r: 0, g: 0, b: 0, a: 1 },
-        loadOp: "clear",
-        storeOp: "store",
-      },
-    ],
-    depthStencilAttachment: {
-      view: null,
-      depthClearValue: 1.0,
-      depthLoadOp: "clear",
-      depthStoreOp: "store",
-    },
-  };
+  passDescriptor: CustomRenderPassDescriptor;
 
   constructor(
     renderer: Renderer,
@@ -44,6 +29,23 @@ export class RenderPass extends Pass {
 
     this.pipeline = this.createPipeline();
     this.bindGroup = this.createBindGroup();
+
+    this.passDescriptor = {
+      colorAttachments: [
+        {
+          view: this.renderer.context.getCurrentTexture().createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
+      ],
+      depthStencilAttachment: {
+        view: this.renderer.depthTexture.createView(),
+        depthClearValue: 1.0,
+        depthLoadOp: "clear",
+        depthStoreOp: "store",
+      },
+    };
   }
 
   draw(): void {
