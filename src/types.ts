@@ -15,19 +15,26 @@ export interface Renderer {
   canvasHeight: number;
   device: GPUDevice;
   defaultSampler: GPUSampler;
+  textures: GPUTexture[];
   depthTexture: GPUTexture;
-  diffuseTexture: GPUTexture;
-  heightTexture: GPUTexture;
 }
 
 export interface Settings {
-  time: number;
+  speed: number;
   fovY: number;
   aspectRatio: number;
   zNear: number;
   zFar: number;
-  translate: [number, number, number];
-  rotate: [number, number, number];
+  translate: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  rotate: {
+    x: number;
+    y: number;
+    z: number;
+  };
   cameraYaw: number;
   cameraPitch: number;
 }

@@ -1,40 +1,31 @@
 import { Camera } from "../camera";
 import { Settings } from "../types";
 import { Matrix4x4 } from "../matrix4x4";
-import { Vector3 } from "../vector3";
+import { Uniform } from "../uniform";
 
-// Temporary function before the uniform class
+// update model??
+export function updateUniforms(uniform: Uniform, settings: Settings) {
+  // uniform get in the future
+  let model = Matrix4x4.new();
 
-export function updateUniforms(
-  timeValue: Float32Array,
-  matrixValue: Float32Array,
-  settings: Settings,
-  time?: number,
-) {
-  // Initial array to hold the values. Mind the data layout
-  if (time) timeValue.set([time]);
+  model = Matrix4x4.rotateX(settings.rotate.x, model);
+  model = Matrix4x4.rotateY(settings.rotate.y, model);
+  model = Matrix4x4.rotateZ(settings.rotate.z, model);
+  model = Matrix4x4.translate(
+    settings.translate.x,
+    settings.translate.y,
+    settings.translate.z,
+    model,
+  );
 
-  let model = new Matrix4x4();
-  model = model
-    .translate(
-      settings.translate[0],
-      settings.translate[1],
-      settings.translate[2],
-    )
-    .rotateX(settings.rotate[0])
-    .rotateY(settings.rotate[1])
-    .rotateZ(settings.rotate[2]);
+  //stopped working, investigate
+  //camera.orient(settings.cameraYaw, settings.cameraPitch);
 
-  const camera = new Camera(new Vector3(0, 0, 10), new Vector3(), {
-    fovY: settings.fovY,
-    aspectRatio: settings.aspectRatio,
-    zNear: settings.zNear,
-    zFar: settings.zFar,
-  });
+  //put view projection matrix into a uniform
+  const modelViewProjection = Matrix4x4.mult(
+    camera.viewProjectionMatrix,
+    model,
+  );
 
-  camera.orient(settings.cameraYaw, settings.cameraPitch);
-
-  const modelViewProjection = camera.viewProjectionMatrix.mult(model);
-
-  matrixValue.set(modelViewProjection.values);
+  uniform.set("matrix", modelViewProjection);
 }

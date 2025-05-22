@@ -43,7 +43,7 @@ fn vertex_main(@location(0) position: vec3f) -> VertexOut
     ), 0).r;
 
     var initialPosition = position;
-    //initialPosition += position * height * .3;
+    initialPosition += position * height * .3;
 
     output.position = uniforms.mvpMatrix * vec4f(initialPosition, 1);
     output.uv = uv;

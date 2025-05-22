@@ -1,4 +1,4 @@
-export async function initializeDevice(): Promise<GPUDevice> {
+export default async function initializeDevice(): Promise<GPUDevice> {
   if (!navigator.gpu) {
     throw new Error("WebGPU not supported.");
   }
@@ -10,6 +10,10 @@ export async function initializeDevice(): Promise<GPUDevice> {
   }
 
   const device = await adapter.requestDevice();
+
+  device.lost.then((deviceLostInfo) => {
+    console.error(deviceLostInfo.reason, deviceLostInfo.message);
+  });
 
   device.addEventListener("uncapturederror", (e) => {
     console.error("A WebGPU error was not captured: " + e.error.message);

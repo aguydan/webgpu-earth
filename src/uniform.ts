@@ -1,15 +1,14 @@
-import { Matrix4x4 } from "./matrix4x4";
 import { Vector3 } from "./vector3";
 
-export enum UniformType {
+export const enum UniformType {
   Number,
   Vector3,
   Matrix4x4,
 }
 
-interface UniformEntry {
+export interface UniformEntry {
   type: UniformType;
-  data: number | Vector3 | Matrix4x4;
+  data: number | Vector3 | Float32Array;
 }
 
 const uniformTypeData = {
@@ -49,6 +48,7 @@ export class Uniform {
 
     let prev: UniformEntry | null = null;
     let prevOffset = 0;
+    let currentOffset = 0;
 
     // we assume it's a struct without arrays for now
     // maybe we should actually make a dedicated tofloat32 function
@@ -60,21 +60,15 @@ export class Uniform {
         const { alignment } = uniformTypeData[value.type];
         const { size } = uniformTypeData[prev.type];
 
-        // initial offset still not fixed
         // something called the roundUp function
         // move to utils
-        const currentOffset =
-          Math.ceil((prevOffset + size) / alignment) * alignment;
+        currentOffset = Math.ceil((prevOffset + size) / alignment) * alignment;
         const padding = currentOffset - prevOffset - size;
 
         // pad with zeroes
         for (let i = 0; i < padding; i++) {
           values.push(0);
         }
-
-        //some way to store the offsets
-        offsets.set(key, currentOffset);
-        prevOffset = currentOffset;
       }
 
       if (typeof value.data === "number") {
@@ -84,7 +78,10 @@ export class Uniform {
         values.push(...value.data);
       }
 
+      offsets.set(key, currentOffset);
+
       prev = value;
+      prevOffset = currentOffset;
     });
 
     this._view = new Float32Array(values);
@@ -92,23 +89,38 @@ export class Uniform {
   }
 
   //this wont work because values may not come one after another
-  set(key: string, value: number | Vector3 | Matrix4x4): void {
+  set(key: string, value: number | Vector3 | Float32Array): void {
     const offset = this._offsets.get(key);
 
-    if (!offset) {
+    if (typeof offset === "undefined") {
       throw new Error("No array position found for the key " + key);
     }
 
     if (typeof value === "number") {
       this._view[offset] = value;
-    } else {
+
+      return;
+    }
+
+    // other option is to resolve naming conflict in the property values between Vector3 and Float32Array
+    if (value instanceof Float32Array) {
+      for (let i = 0; i < value.length; i++) {
+        this._view[offset + i] = value[i];
+      }
+
+      return;
+    }
+
+    if (value instanceof Vector3) {
       for (let i = 0; i < value.values.length; i++) {
         this._view[offset + i] = value.values[i];
       }
     }
   }
 
-  get(key: string) {}
+  get(key: string) {
+    throw new Error("To be implemented");
+  }
 
   toGPUUniform(binding: number): GPUUniform {
     const buffer = this._device.createBuffer({

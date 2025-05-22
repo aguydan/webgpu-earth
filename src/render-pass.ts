@@ -14,7 +14,22 @@ export class RenderPass extends Pass {
   meshes: GPUMesh[];
   uniforms: GPUUniform[];
 
-  passDescriptor: CustomRenderPassDescriptor;
+  passDescriptor: CustomRenderPassDescriptor = {
+    colorAttachments: [
+      {
+        view: null,
+        clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        loadOp: "clear",
+        storeOp: "store",
+      },
+    ],
+    depthStencilAttachment: {
+      view: null,
+      depthClearValue: 1.0,
+      depthLoadOp: "clear",
+      depthStoreOp: "store",
+    },
+  };
 
   constructor(
     renderer: Renderer,
@@ -24,28 +39,11 @@ export class RenderPass extends Pass {
   ) {
     super(renderer, shader);
 
-    this.pipeline = this.createPipeline();
-    this.bindGroup = this.createBindGroup();
-
     this.meshes = meshes;
     this.uniforms = uniforms;
 
-    this.passDescriptor = {
-      colorAttachments: [
-        {
-          view: null,
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
-          loadOp: "clear",
-          storeOp: "store",
-        },
-      ],
-      depthStencilAttachment: {
-        view: null,
-        depthClearValue: 1.0,
-        depthLoadOp: "clear",
-        depthStoreOp: "store",
-      },
-    };
+    this.pipeline = this.createPipeline();
+    this.bindGroup = this.createBindGroup();
   }
 
   draw(): void {
@@ -79,18 +77,9 @@ export class RenderPass extends Pass {
 
     passEncoder.end();
 
-    //     device.pushErrorScope("internal");
-
     device.queue.submit([commandEncoder.finish()]);
-
-    /*     device.popErrorScope().then((error) => {
-      if (error) {
-        throw new Error(error.message);
-      }
-    }); */
   }
 
-  //update uniforms???
   render(): void {
     const device = this.renderer.device;
 
@@ -123,11 +112,11 @@ export class RenderPass extends Pass {
         },
         {
           binding: 2,
-          resource: this.renderer.diffuseTexture.createView(),
+          resource: this.renderer.textures[0].createView(),
         },
         {
           binding: 3,
-          resource: this.renderer.heightTexture.createView(),
+          resource: this.renderer.textures[1].createView(),
         },
       ],
     });
